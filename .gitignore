@@ -1,0 +1,48 @@
+# Runtime & logs
+node_modules/
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+lerna-debug.log*
+pnpm-debug.log*
+report.[0-9]*.json
+*.pid
+*.seed
+*.pid.lock
+
+# Build outputs
+dist/
+build/
+
+# Uploaded files (optional: in case nodes modules
+uploads/
+
+# Environment variables
+.env
+.env.*.local
+
+# IDEs & editors
+.vscode/
+.idea/
+*.sublime-workspace
+*.class
+
+# Cache and coverage
+.cache/
+.nyc_output/
+coverage/
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Optional system files
+*.tgz
+npm-packages/
+
+# PDF parsing artifacts
+*.pdf
