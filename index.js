@@ -391,7 +391,7 @@ ${resumeText}
 }
 
 // Initialize the processing chain
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyA84_U6XgvAo7wsyTQFtZI7kRADDUGPu_g';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '*******************';
 const resumeChain = new ResumeProcessingChain(GEMINI_API_KEY);
 
 // Utility function to read different file types
