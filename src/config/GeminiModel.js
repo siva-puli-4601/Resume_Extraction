@@ -64,7 +64,7 @@ JSON FORMAT:
 
 GUIDELINES:
 
-Always return valid JSON.
+Always return valid JSON
 
 Fill missing data with empty values.
 
