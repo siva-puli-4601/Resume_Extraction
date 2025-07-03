@@ -4,7 +4,6 @@ import fs from 'fs';
 import path from 'path';
 
 export const parseResumeHandler = async (req, res) => {
-    const startTime = Date.now();
 
     try {
         let resumeText = '';
@@ -39,7 +38,6 @@ export const parseResumeHandler = async (req, res) => {
         return res.json({
             success: true,
             data: result,
-            processingTime: `${Date.now() - startTime}ms`
         });
 
     } catch (err) {
