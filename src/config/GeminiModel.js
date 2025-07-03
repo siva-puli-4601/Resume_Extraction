@@ -1,7 +1,14 @@
-import { model } from "../config/gemini.js";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import fs from "fs";
 
-export async function parseResumeText(resumeText) {
-    const prompt = `
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+
+export async function parseResumePDF(filePath) {
+    try {
+        const pdfBuffer = fs.readFileSync(filePath);
+        console.log("PDF file read successfully, size:", pdfBuffer);
+        const prompt = `
 You are an expert resume parser.
 
 Extract and return a structured JSON object from the provided resume text. Always include all fields listed below. If a field is missing, use an empty string or empty array.
@@ -64,22 +71,43 @@ Fill missing data with empty values.
 Sort education by most recent.
 
 Derive inferred values where possible (e.g., experience).
-
-Resume Text:
-${resumeText}
 `;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let rawText = response.text().trim();
+        console.log("Parsing resume from PDF...");
 
-    if (rawText.startsWith("```json")) {
-        rawText = rawText.replace(/```json\n?/, '').replace(/\n?```$/, '');
-    } else if (rawText.startsWith("```")) {
-        rawText = rawText.replace(/```\n?/, '').replace(/\n?```$/, '');
+        const result = await model.generateContent([
+            {
+                inlineData: {
+                    mimeType: "application/pdf",
+                    data: pdfBuffer.toString("base64")
+                }
+            },
+            { text: prompt }
+        ]);
+
+        const response = await result.response;
+        console.log("Response received from Gemini:", response);
+        const text = response.text();
+        try {
+            let cleanedText = text.trim();
+            if (cleanedText.startsWith('```json')) {
+                cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+            } else if (cleanedText.startsWith('```')) {
+                cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+            }
+            cleanedText = cleanedText.trim();
+
+            // Try to parse as JSON
+            const parsedData = JSON.parse(cleanedText);
+            console.log("Successfully parsed JSON response", parsedData);
+            return parsedData;
+        } catch (parseError) {
+            console.warn("Failed to parse response as JSON, returning raw text:", parseError.message);
+            return text;
+        }
+
+    } catch (error) {
+        console.error("Error parsing resume:", error);
+        throw error;
     }
-
-    const json = JSON.parse(rawText);
-
-    return json;
 }
