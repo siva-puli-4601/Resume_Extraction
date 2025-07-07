@@ -5,10 +5,10 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
 
 export async function parseResumePDF(filePath) {
-    try {
-        const pdfBuffer = fs.readFileSync(filePath);
-        console.log("PDF file read successfully, size:", pdfBuffer);
-        const prompt = `
+  try {
+    const pdfBuffer = fs.readFileSync(filePath);
+    console.log("PDF file read successfully, size:", pdfBuffer);
+    const prompt = `
 You are an expert resume parser.
 
 Extract and return a structured JSON object from the provided resume text. Always include all fields listed below. If a field is missing, use an empty string or empty array.
@@ -16,55 +16,55 @@ Extract and return a structured JSON object from the provided resume text. Alway
 JSON FORMAT:
 {
   "personalInfo": {
-    "firstName": "",          // First name from contact or personal section like jon dev bravo then jon is fname.
-    "middleName": "",         // If not explicitly available, leave blank dev is midname .
-    "lastName": "",           // Last name from full name in resume header bravo is last name.
-    "gender": "",             // If not mentioned, infer only if clearly stated (e.g. he/she/him/her); else leave blank.
-    "email": "",              // Look for valid email patterns.
-    "phoneNumber": "",        // Look for 10+ digit numbers or international format.
-    "linkedinProfile": "",    // Extract full LinkedIn profile URL.
-    "country": "",            // Country from address/contact details.
-    "state": "",              // State from address or location.
-    "city": ""                // City from address or location.
+    "firstName": "",          // First part of full name only (e.g., "Jon Dev Bravo" → "Jon"). Ignore titles (Dr., Mr.) and suffixes (Jr., Sr.)
+    "middleName": "",         // Middle part of name (e.g., "Jon Dev Bravo" → "Dev"). Leave empty if no middle name
+    "lastName": "",           // Last part of name (e.g., "Jon Dev Bravo" → "Bravo"). If only one name, put in firstName
+    "gender": "",             
+    "email": "",              
+    "phoneNumber": "",        
+    "linkedinProfile": "",    // Extract full LinkedIn profile URL
+    "country": "",            
+    "state": "",              
+    "city": ""                
   },
   "work": {
-    "currentStatus": "",       // Use keywords like "currently working", "looking for", "student" to infer (Employed, Unemployed, Student).
-    "experienceInYears": "",   // Calculate from experience dates. Can be in decimals like 0.8(e.g. 1.6).
-    "source": "",              // If resume mentions source like LinkedIn, Naukri, Referral, etc.
-    "expectedCost": "",        // Extract salary expectations or hourly rate if mentioned.
-    "skills": [],              // List of all technical and soft skills explicitly listed or inferred.
-    "currentLocation": "",     // Latest work location or address.
-    "currentEmployer": "",     // Most recent company name where candidate is/was working.
-    "department": "",          // Department like Engineering, HR, Sales (if mentioned).
-    "designation": "",         // Current or most recent job title.
-    "preferredLocations": []   // Locations where candidate wishes to work (from objective/preferences).
+     "currentStatus": "",       // 4-step logic: 1) Has current job (toDate="Present" OR 2025) AND NOT internship → "Employed" 2) Latest education ends 2025+ AND no current job → "Graduating" 3) Education complete + no current job → "Unemployed" 4)Has notice period → "Notice Period"
+    "experienceInYears": "",   // Sum job durations EXCLUDING internships. Convert to decimal years (6 months = 0.5). Need both fromDate and toDate. Examples: "1.5", "0.8", "2.25"                       
+    "source": "",              // Source if mentioned (LinkedIn, Naukri, Referral, etc.)
+    "expectedCost": "",        
+    "skills": [],              
+    "currentLocation": "",     
+    "currentEmployer": "",    
+    "department": "",          
+    "designation": "",         
+    "preferredLocations": []   
   },
   "experienceDetails": [
     {
-      "organization": "",        // Company/Organization name.
-      "designation": "",         // Role/Title in that organization.
-      "country": "",             // Work location country.
-      "state": "",               // Work location state.
-      "employeeType": "",        // Full-time, Internship, Freelance, Contract (if stated).
-      "fromDate": "",            // Start date (format not strict, but readable).
-      "toDate": "",              // End date or "Present".
-      "skillsUsed": []           // Skills *used in this role only*. Be specific (e.g., JavaScript, Python, React). Avoid generic phrases.
+      "organization": "",       
+      "designation": "",       
+      "country": "",           
+      "state": "",              
+      "employeeType": "",       // Standardize: Full-time/Permanent → "Full-time", Part-time → "Part-time", Contract/Consultant → "Contract", Intern/Trainee → "Internship", Freelance → "Freelance". Default: "Full-time"
+      "fromDate": "",           // Start date (format: YYYY-MM or any readable form)
+      "toDate": "",             // End date or "Present"
+      "skillsUsed": []          
     }
   ],
   "educationDetails": [
     {
-      "degree": "",              // Bachelor's, Master's, Diploma, etc.
-      "specialization": "",      // Major subject or stream.
-      "institution": "",         // College/University/School name.
-      "year": "",                // Year of graduation or completion.
-      "gradeOrScore": ""         // CGPA, percentage, etc.
+      "degree": "",             
+      "specialization": "",    
+      "institution": "",        
+      "year": "",              
+      "gradeOrScore": ""       
     }
   ]
 }
 
 GUIDELINES:
 
-Always return valid JSON
+Always return valid JSON.
 
 Fill missing data with empty values.
 
@@ -73,41 +73,41 @@ Sort education by most recent.
 Derive inferred values where possible (e.g., experience).
 `;
 
-        console.log("Parsing resume from PDF...");
+    console.log("Parsing resume from PDF...");
 
-        const result = await model.generateContent([
-            {
-                inlineData: {
-                    mimeType: "application/pdf",
-                    data: pdfBuffer.toString("base64")
-                }
-            },
-            { text: prompt }
-        ]);
-
-        const response = await result.response;
-        console.log("Response received from Gemini:", response);
-        const text = response.text();
-        try {
-            let cleanedText = text.trim();
-            if (cleanedText.startsWith('```json')) {
-                cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-            } else if (cleanedText.startsWith('```')) {
-                cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-            }
-            cleanedText = cleanedText.trim();
-
-            // Try to parse as JSON
-            const parsedData = JSON.parse(cleanedText);
-            console.log("Successfully parsed JSON response", parsedData);
-            return parsedData;
-        } catch (parseError) {
-            console.warn("Failed to parse response as JSON, returning raw text:", parseError.message);
-            return text;
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          mimeType: "application/pdf",
+          data: pdfBuffer.toString("base64")
         }
+      },
+      { text: prompt }
+    ]);
 
-    } catch (error) {
-        console.error("Error parsing resume:", error);
-        throw error;
+    const response = await result.response;
+    console.log("Response received from Gemini:", response);
+    const text = response.text();
+    try {
+      let cleanedText = text.trim();
+      if (cleanedText.startsWith('```json')) {
+        cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanedText.startsWith('```')) {
+        cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      cleanedText = cleanedText.trim();
+
+      // Try to parse as JSON
+      const parsedData = JSON.parse(cleanedText);
+      console.log("Successfully parsed JSON response", parsedData);
+      return parsedData;
+    } catch (parseError) {
+      console.warn("Failed to parse response as JSON, returning raw text:", parseError.message);
+      return text;
     }
+
+  } catch (error) {
+    console.error("Error parsing resume:", error);
+    throw error;
+  }
 }
