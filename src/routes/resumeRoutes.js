@@ -6,6 +6,6 @@ import { handleParseResume } from '../controllers/handleParseResume.js';
 const router = express.Router();
 
 router.post('/parse-resume', upload.single('resume'), parseResumeHandler);
-router.post("/parse-resume123", upload.single("resume"), handleParseResume);
+router.post("/resumeExtracting", upload.single("resume"), handleParseResume);
 
 export default router;
