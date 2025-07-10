@@ -4,6 +4,10 @@ import { parseResumePDF } from "../config/GeminiModel.js";
 
 export async function handleParseResume(req, res) {
   try {
+    console.log('HEADERS:', req.headers['content-type']);
+console.log('BODY:', req.body);
+console.log('FILE:', req.file);
+    console.log("Received file:", req.file);
     if (!req.file) throw new Error("Resume PDF not provided");
     const jsonText = await parseResumePDF(req.file.path);
     fs.unlinkSync(req.file.path);

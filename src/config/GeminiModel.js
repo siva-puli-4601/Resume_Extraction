@@ -6,7 +6,9 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
 
 export async function parseResumePDF(filePath) {
   try {
-    const currentYear = new Date().getFullYear();
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();      // e.g., 2025
+    const currentMonth = currentDate.getMonth() + 1;
     const pdfBuffer = fs.readFileSync(filePath);
     console.log("PDF file read successfully, size:", pdfBuffer);
     const prompt = `
@@ -17,33 +19,32 @@ Rules:
 - Sort by most recent first
 - toDate="Present" means currently active
 - Any past date (lesser then current year) means ended
-- Exclude internships from experience calculation
+- Exclude internships from experience calculation AND from experienceDetails array
+- Do NOT include any work experience entry unless it has a clearly named organization or company explicitly mentioned in the resume.
+- STRICT: Do not infer or generate placeholders like "Open Source Contributor" or similar if no actual organization name is mentioned. These should be ignored in experienceDetails.
+- Only include organization names exactly as written by the candidate in the resume. Do not reword or rename them.
 - Return valid JSON only
 JSON FORMAT:
 {
   "personalInfo": {
     "fullName": "",          
-    "firstName": "",          // First part of full name only (e.g., "Jon Dev Bravo" → "Jon"). Ignore titles (Dr., Mr.) and suffixes (Jr., Sr.)
-    "middleName": "",         // Middle part of name (e.g., "Jon Dev Bravo" → "Dev"). Leave empty if no middle name
-    "lastName": "",           // Last part of name (e.g., "Jon Dev Bravo" → "Bravo"). If only one name, put in firstName
     "gender": "",             
-   "email": "",               // Extract ONLY the first email found in resume
-    "phoneNumber": "",        // Extract ONLY the first phone number found in resume        
+    "email": "",               // Extract ONLY the first email found in resume
+    "phoneNumber": "",        // Extract the first phone number found in the resume, regardless of its length or format.       
     "linkedinProfile": "",    // Extract full LinkedIn profile URL
-    "country": "",            
-    "state": "",              
-    "city": ""                
+    "country": "",            // Only include if the candidate mentions it in their personal details, not in experienceDetails or educationDetails
+    "state": "",              // Only include if mentioned in personal details, not in experienceDetails or educationDetails
+    "city": ""                // Only include if mentioned in personal details, not in experienceDetails or educationDetails
   },
-   "experienceDetails": [
+     "experienceDetails": [     // Do NOT include internships in this array if you find any thing like "Internship", "Intern", etc.         
     {
-      "organization": "",       
-      "designation": "",       
-      "country": "",           
-      "state": "",              
-       "employeeType": "",      // Map based on location: USA → "C2C"/"W2"/"1099" | India → "Full Time"/"Contract"/"Contract to Hire"/"Part time contract"/"Part time - On demand" | Match exact strings, default "Full Time"
+      "organization": "",       // Use the organization name exactly as mentioned by the candidate; do not infer or modify it.
+      "designation": "",       // Use the designation exactly as mentioned by the candidate for that company; do not infer or modify it.
+      "country": "",            // only if he mention in that particuale company related address     
+      "state": "",               // only if he mention in that particuale company related address 
       "fromDate": "",           // Start date (format: YYYY-MM or any readable form)
       "toDate": "",             // End date or "Present"
-      "skillsUsed": []          
+      "skillsUsed": []          // Include only tech stack-related skills (e.g., languages, frameworks, tools). Exclude general techniques or terms like "lazy loading".
     }
   ],
   "educationDetails": [
@@ -51,23 +52,34 @@ JSON FORMAT:
       "degree": "",             
       "specialization": "",    
       "institution": "",        
-      "year": "",              
+      "year": "",         // If range like "2016-2017" → use end year "2017" | If "2024-Present" → use "Present" | Single year → use as-is     
       "gradeOrScore": ""       
     }
   ]
   "work": {
     "currentStatus": "",         // STRICT: Step 1: Notice period keywords → "Notice Period" | Step 2:Strictly Most recent job toDate EXACTLY "Present" AND NOT intern → "Employed" | Step 3: Strictly Most recent education  Year EXACTLY "Present" or its  Year is strictly greater than the>${currentYear} → "Graduating" | Step 4: if no steps satisfy before Default → "Unemployed"
-    "experienceInYears": "",    // Calculate experience in years EXCLUDING internships. Convert to decimal years if needed like 2.11 years it means he worked for 2 years and 11 months. Need both fromDate and toDate. Examples: "1.5", "0.8", "2.2". CRITICAL: Handle overlapping employment - if candidate worked at multiple companies simultaneously (e.g., ABC: 2015-2017, XYZ: 2015-2017), merge overlapping periods first then sum (result: 2.0 years, NOT 4.0 years). Only count actual working periods, ignore unemployment gaps.
-    "skills": [],              
-    "currentLocation": "",     
-    "currentEmployer": "",             
-    "designation": "",         
+    "experienceInYears": "",    
+// Calculate total work experience (exclude internships).
+// Count full-time jobs even if done during education.
+// Merge overlapping job periods before summing.
+// Examples:
+// - ABC: 2015-2017, XYZ: 2016-2018 → Total = 3Y-0M
+// - ABC: 2015-2017, XYZ: 2015-2017 → Total = 2Y-0M
+// // Format: "Xy-Ym" (e.g., "2Y-11M", "0Y-6M"). No leading zeros.  Do not round months. 11 months = "0Y-11M", NOT "1Y-0M".
+
+// Accept dates like MM/YYYY, Month YYYY, etc.
+// If toDate = "Present", use current date (${currentYear}-${currentMonth}).
+// Skip entries missing dates or marked as intern/trainee/apprentice.
+// If no valid job found, return "0Y-0M".
+    "skills": [],             // Include only tech stack-related skills (e.g., languages, frameworks, tools). Exclude general techniques or terms like "lazy loading".
+    "currentLocation": "",     // if the candidate currently working in any company then return the current location of that company.
+    "currentEmployer": "",        // If the candidate is currently employed, return the name of the current employer.       
+    "designation": "",         // If the candidate is currently employed, return the designation of the current employer.
   },
- 
+  noticePeriod: "", // If notice period is mentioned in resume text, return it here. Otherwise, leave empty.
 }
 `;
 
-    console.log("Parsing resume from PDF...");
 
     const result = await model.generateContent([
       {
@@ -80,7 +92,6 @@ JSON FORMAT:
     ]);
 
     const response = await result.response;
-    console.log("Response received from Gemini:", response);
     const text = response.text();
     try {
       let cleanedText = text.trim();
@@ -93,7 +104,62 @@ JSON FORMAT:
 
       // Try to parse as JSON
       const parsedData = JSON.parse(cleanedText);
-      console.log("Successfully parsed JSON response", parsedData);
+
+      let latestExperience = null;
+      let latestEducation = null;
+
+      // Extract parsed values
+      const { experienceDetails = [], educationDetails = [], work, noticePeriod } = parsedData || {};
+
+      // Step 1: Check for notice period keywords in resume text
+      // const noticeKeywords = ["notice period", "serving notice"];
+      const isInNoticePeriod = noticePeriod ? true : false;
+
+      // Step 2: Get latest experience (exclude internships, if still present somehow)
+      // const validExperiences = experienceDetails.filter(exp => {
+      //   return !/intern/i.test(exp.designation || "");
+      // });
+
+      // if (validExperiences.length > 0) {
+      //   latestExperience = validExperiences.sort((a, b) => {
+      //     const toA = a.toDate === "Present" ? "9999-12" : a.toDate || "";
+      //     const toB = b.toDate === "Present" ? "9999-12" : b.toDate || "";
+      //     return toB.localeCompare(toA); // Most recent first
+      //   })[0];
+      // }
+
+      latestExperience = experienceDetails.length > 0 ? experienceDetails[0] : null;
+      latestEducation = educationDetails.length > 0 ? educationDetails[0] : null;
+      // Step 3: Get latest education
+      // if (educationDetails.length > 0) {
+      //   latestEducation = educationDetails.sort((a, b) => {
+      //     const yearA = a.year === "Present" ? 9999 : parseInt(a.year) || 0;
+      //     const yearB = b.year === "Present" ? 9999 : parseInt(b.year) || 0;
+      //     return yearB - yearA; // Most recent first
+      //   })[0];
+      // }
+
+      // Step 4: Determine currentStatus
+      let currentStatus = "Unemployed"; // Default
+
+      if (isInNoticePeriod) {
+        currentStatus = "Notice Period";
+      } else if (latestExperience && latestExperience.toDate === "Present") {
+        experienceDetails[0].toDate=`${currentYear}-${currentMonth}`;
+        currentStatus = "Employed";
+      } else if (
+        latestEducation &&
+        (latestEducation.year === "Present" || parseInt(latestEducation.year) > currentYear)
+      ) {
+        if( latestEducation.year === "Present") {
+          educationDetails[0].year=`${currentYear}`;
+        }
+        currentStatus = "Graduating";
+      }
+
+      // Update work object
+      parsedData.work.currentStatus = currentStatus;
+
       return parsedData;
     } catch (parseError) {
       console.warn("Failed to parse response as JSON, returning raw text:", parseError.message);
