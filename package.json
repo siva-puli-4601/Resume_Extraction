@@ -12,14 +12,26 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@google/genai": "^1.7.0",
+    "@google/genai": "^1.9.0",
     "@google/generative-ai": "^0.24.1",
+    "@gutenye/ocr-node": "^1.4.8",
+    "axios": "^1.10.0",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.6.0",
     "express": "^5.1.0",
+    "form-data": "^4.0.3",
+    "fs-extra": "^11.3.0",
+    "https": "^1.0.0",
     "multer": "^2.0.1",
+    "node-pdftotext": "^1.0.4",
     "nodemon": "^3.1.10",
-    "pdf-parse": "^1.1.1"
+    "pdf-parse": "^1.1.1",
+    "pdf-poppler": "^0.2.1",
+    "pdf2pic": "^3.2.0",
+    "resume-parser": "^1.1.0",
+    "scribe.js-ocr": "^0.8.0",
+    "simple-resume-parser": "^1.1.8",
+    "tesseract.js": "^6.0.1"
   }
 }

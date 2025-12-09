@@ -10,7 +10,6 @@ export async function parseResumePDF(filePath) {
     const currentYear = currentDate.getFullYear();      // e.g., 2025
     const currentMonth = currentDate.getMonth() + 1;
     const pdfBuffer = fs.readFileSync(filePath);
-    console.log("PDF file read successfully, size:", pdfBuffer);
     const prompt = `
 You are an expert resume parser.
 
@@ -29,20 +28,20 @@ JSON FORMAT:
   "personalInfo": {
     "fullName": "",          
     "gender": "",             
-    "email": "",               // Extract ONLY the first email found in resume
-    "phoneNumber": "",        // Extract the first phone number found in the resume, regardless of its length or format.       
+    "email": "",               // First email only
+    "phoneNumber": "",        //  First phone number found, any length/format
     "linkedinProfile": "",    // Extract full LinkedIn profile URL
-    "country": "",            // Only include if the candidate mentions it in their personal details, not in experienceDetails or educationDetails
-    "state": "",              // Only include if mentioned in personal details, not in experienceDetails or educationDetails
-    "city": ""                // Only include if mentioned in personal details, not in experienceDetails or educationDetails
+    "country": "",             // Only if in personal details (not inferred from experience or education)
+    "state": "",             
+    "city": ""                
   },
-     "experienceDetails": [     // Do NOT include internships in this array if you find any thing like "Internship", "Intern", etc.         
+     "experienceDetails": [             
     {
-      "organization": "",       // Use the organization name exactly as mentioned by the candidate; do not infer or modify it.
-      "designation": "",       // Use the designation exactly as mentioned by the candidate for that company; do not infer or modify it.
-      "country": "",            // only if he mention in that particuale company related address     
-      "state": "",               // only if he mention in that particuale company related address 
-      "fromDate": "",           // Start date (format: YYYY-MM or any readable form)
+      "organization": "",       // Use the organization and designation name exactly as mentioned by the candidate; do not infer or modify it.
+      "designation": "",      
+      "country": "",            // Only if mentioned for that company     
+      "state": "",               
+      "fromDate": "",           // Start date (format: YYYY-MM)
       "toDate": "",             // End date or "Present"
       "skillsUsed": []          // Include only tech stack-related skills (e.g., languages, frameworks, tools). Exclude general techniques or terms like "lazy loading".
     }
@@ -57,11 +56,12 @@ JSON FORMAT:
     }
   ]
   "work": {
-    "currentStatus": "",         // STRICT: Step 1: Notice period keywords → "Notice Period" | Step 2:Strictly Most recent job toDate EXACTLY "Present" AND NOT intern → "Employed" | Step 3: Strictly Most recent education  Year EXACTLY "Present" or its  Year is strictly greater than the>${currentYear} → "Graduating" | Step 4: if no steps satisfy before Default → "Unemployed"
+    "currentStatus": "",         
     "experienceInYears": "",    
 // Calculate total work experience (exclude internships).
 // Count full-time jobs even if done during education.
 // Merge overlapping job periods before summing.
+// Do not round up months. If today is mid-month, do not count it as a full month.
 // Examples:
 // - ABC: 2015-2017, XYZ: 2016-2018 → Total = 3Y-0M
 // - ABC: 2015-2017, XYZ: 2015-2017 → Total = 2Y-0M
@@ -71,12 +71,12 @@ JSON FORMAT:
 // If toDate = "Present", use current date (${currentYear}-${currentMonth}).
 // Skip entries missing dates or marked as intern/trainee/apprentice.
 // If no valid job found, return "0Y-0M".
-    "skills": [],             // Include only tech stack-related skills (e.g., languages, frameworks, tools). Exclude general techniques or terms like "lazy loading".
-    "currentLocation": "",     // if the candidate currently working in any company then return the current location of that company.
-    "currentEmployer": "",        // If the candidate is currently employed, return the name of the current employer.       
-    "designation": "",         // If the candidate is currently employed, return the designation of the current employer.
+    "skills": [],             // Only tech stack skills
+    "currentLocation": "",     // From current employer's location
+    "currentEmployer": "",       // Only if currently employed      
+    "designation": "",          // From current job, if employed
   },
-  noticePeriod: "", // If notice period is mentioned in resume text, return it here. Otherwise, leave empty.
+  noticePeriod: "", // If mentioned in text, else empty
 }
 `;
 
@@ -93,6 +93,8 @@ JSON FORMAT:
 
     const response = await result.response;
     const text = response.text();
+    console.log("Response received from Gemini AI", text);
+
     try {
       let cleanedText = text.trim();
       if (cleanedText.startsWith('```json')) {

@@ -1,5 +1,4 @@
 import express from 'express';
-import { parseResumeHandler } from '../controllers/resumeController.js';
 import { upload } from '../middlewares/upload.js';
 import { handleParseResume } from '../controllers/handleParseResume.js';
 
